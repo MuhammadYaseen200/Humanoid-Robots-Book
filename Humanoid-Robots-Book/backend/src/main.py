@@ -289,12 +289,16 @@ Main application for Physical AI & Humanoid Robotics textbook backend.
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import logging
 
 from src.config import settings
 from src.db.neon_client import get_neon_client
 from src.db.qdrant_setup import get_qdrant_manager
 from src.chat.routes import router as chat_router
+from src.routers import auth_router, profile_router
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -331,6 +335,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# --- Configure Rate Limiting (Feature 003-better-auth) ---
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # --- CORS (Allow Frontend to Talk to Backend) ---
 app.add_middleware(
     CORSMiddleware,
@@ -340,9 +349,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ROUTER SETUP (The Fix for 404) ---
-# We explicitly add the prefix "/api" so /api/chat works
+# --- ROUTER SETUP ---
+# Chat router (Feature 002-rag-chatbot)
 app.include_router(chat_router, prefix="/api", tags=["Chat"])
+
+# Authentication routers (Feature 003-better-auth)
+app.include_router(auth_router, tags=["Authentication"])
+app.include_router(profile_router, tags=["Profile"])
 
 @app.get("/")
 async def root():
