@@ -1,176 +1,99 @@
 """
 Authentication Dependencies
 Feature: 003-better-auth
-Purpose: FastAPI dependencies for JWT authentication and authorization
+Purpose: FastAPI dependencies for extracting current user from JWT
 
-Usage:
-    @app.get("/api/profile")
-    async def get_profile(current_user: dict = Depends(get_current_user)):
-        return current_user
+These dependencies are used in protected routes to:
+1. Extract JWT token from Authorization header
+2. Validate and decode the token
+3. Return user information for the route handler
 """
 
-from typing import Dict, Any, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError
+from typing import Dict, Any
+from ..utils.jwt import decode_access_token
 
-from ..utils.jwt import decode_token
-
-# HTTPBearer security scheme for extracting Bearer tokens from Authorization header
-security = HTTPBearer(auto_error=False)
+# HTTP Bearer token scheme
+security = HTTPBearer()
 
 
 async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> Dict[str, Any]:
     """
-    FastAPI dependency for JWT authentication.
+    Extract and validate current user from JWT token.
 
-    Extracts and validates JWT token from:
-    1. Authorization header: "Bearer <token>"
-    2. (Future) httpOnly cookie: "auth_token"
+    This dependency:
+    1. Extracts the Bearer token from Authorization header
+    2. Decodes and validates the JWT
+    3. Returns the full user profile from token claims
 
-    Returns decoded JWT payload with user profile claims:
-    - sub (user_id)
-    - email
-    - name
-    - gpu_type
-    - ram_capacity
-    - coding_languages
-    - robotics_experience
+    **Usage in Protected Routes**:
+    ```python
+    @router.get("/protected")
+    async def protected_route(user: dict = Depends(get_current_user)):
+        return {"message": f"Hello {user['name']}!"}
+    ```
+
+    Args:
+        credentials: HTTP Bearer credentials from Authorization header
+
+    Returns:
+        dict: User profile with all claims from JWT
 
     Raises:
-        HTTPException 401: If token missing, invalid, or expired
+        HTTPException: 401 if token is invalid or expired
 
-    Example:
-        >>> @app.get("/api/profile")
-        >>> async def get_profile(current_user: dict = Depends(get_current_user)):
-        ...     user_id = current_user["sub"]
-        ...     email = current_user["email"]
-        ...     gpu_type = current_user["gpu_type"]
-        ...     return {"user_id": user_id, "gpu": gpu_type}
-
-    Reference:
-        - ADR-006: JWT claims contain embedded profile for stateless authentication
-        - Tasks T015: JWT authentication dependency
+    **Token Format Expected**:
+    ```
+    Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+    ```
     """
-    # Check if credentials provided
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated. Please sign in.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Extract token
     token = credentials.credentials
+    payload = decode_access_token(token)
 
-    try:
-        # Decode and validate JWT
-        # This validates signature and expiration automatically
-        payload = decode_token(token)
-
-        # Ensure required claims are present
-        if "sub" not in payload:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token: missing user ID",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        return payload
-
-    except JWTError as e:
-        # Token invalid, expired, or signature mismatch
+    if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired token: {str(e)}",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    return payload
 
 
 async def get_current_user_id(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    user: Dict[str, Any] = Depends(get_current_user)
 ) -> str:
     """
-    Convenience dependency to extract only user ID from JWT.
+    Extract only the user ID from JWT token.
 
-    Example:
-        >>> @app.put("/api/profile")
-        >>> async def update_profile(
-        ...     user_id: str = Depends(get_current_user_id),
-        ...     updates: ProfileUpdateRequest
-        ... ):
-        ...     # Update user_profiles WHERE user_id = user_id
-        ...     pass
+    Convenience dependency for routes that only need the user ID.
 
-    Reference:
-        - Simpler than extracting from full current_user dict
-        - Use when only user ID needed (not full profile)
+    **Usage**:
+    ```python
+    @router.get("/my-data")
+    async def get_my_data(user_id: str = Depends(get_current_user_id)):
+        # Query database using user_id
+        return {"user_id": user_id}
+    ```
+
+    Args:
+        user: User profile from get_current_user dependency
+
+    Returns:
+        str: User UUID from JWT 'user_id' claim
+
+    Raises:
+        HTTPException: 401 if token doesn't contain user_id
     """
-    return current_user["sub"]
+    user_id = user.get("user_id")
 
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not found in token",
+        )
 
-async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-) -> Optional[Dict[str, Any]]:
-    """
-    Optional authentication dependency.
-
-    Returns user profile if authenticated, None if not authenticated.
-    Does NOT raise exception for missing/invalid tokens.
-
-    Use Case:
-        - Endpoints that provide enhanced features for authenticated users
-        - But also work for anonymous users
-
-    Example:
-        >>> @app.get("/api/chapters/{chapter_id}")
-        >>> async def get_chapter(
-        ...     chapter_id: int,
-        ...     user: Optional[dict] = Depends(get_optional_user)
-        ... ):
-        ...     # If user authenticated: include progress, bookmarks
-        ...     # If anonymous: return public content only
-        ...     is_authenticated = user is not None
-        ...     return {"chapter": chapter_id, "authenticated": is_authenticated}
-
-    Reference:
-        - Useful for hybrid public/private content
-        - Gracefully degrades when token missing
-    """
-    if not credentials:
-        return None
-
-    token = credentials.credentials
-
-    try:
-        payload = decode_token(token)
-        return payload if "sub" in payload else None
-    except JWTError:
-        # Token invalid/expired - treat as anonymous
-        return None
-
-
-# Future: Cookie-based authentication dependency (ADR-004 production mode)
-async def get_current_user_from_cookie(
-    # request: Request  # Uncomment when implementing cookie support
-) -> Dict[str, Any]:
-    """
-    Extract JWT from httpOnly cookie (production mode).
-
-    **NOT YET IMPLEMENTED** - Placeholder for ADR-004 production strategy.
-
-    When implemented:
-    1. Extract 'auth_token' cookie from request
-    2. Decode and validate JWT
-    3. Return user payload
-
-    Reference:
-        - ADR-004: httpOnly cookies for production (XSS protection)
-        - Task T042: Implement httpOnly cookie support
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Cookie authentication not yet implemented. Use Authorization header.",
-    )
+    return user_id

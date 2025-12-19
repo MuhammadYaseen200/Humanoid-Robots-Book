@@ -299,6 +299,7 @@ from src.db.neon_client import get_neon_client
 from src.db.qdrant_setup import get_qdrant_manager
 from src.chat.routes import router as chat_router
 from src.routers import auth_router, profile_router
+from src.routers import auth_router, profile_router
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -354,8 +355,8 @@ app.add_middleware(
 app.include_router(chat_router, prefix="/api", tags=["Chat"])
 
 # Authentication routers (Feature 003-better-auth)
-app.include_router(auth_router, tags=["Authentication"])
-app.include_router(profile_router, tags=["Profile"])
+app.include_router(auth_router, prefix="/api", tags=["Authentication"])
+app.include_router(profile_router, prefix="/api", tags=["User Profile"])
 
 @app.get("/")
 async def root():

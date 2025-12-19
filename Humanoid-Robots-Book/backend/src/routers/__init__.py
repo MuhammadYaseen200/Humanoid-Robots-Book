@@ -1,7 +1,6 @@
 """
-Routers Package
+API Route Handlers
 Feature: 003-better-auth
-Purpose: Export all API routers for registration in main.py
 """
 
 from .auth import router as auth_router

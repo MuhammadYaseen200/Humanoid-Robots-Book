@@ -1,81 +1,90 @@
--- Migration 003: Add hardware/software profile fields for personalization
--- Feature: 003-better-auth
--- Created: 2025-12-16
--- Purpose: Extend user_profiles table with hardware background questions for personalization
+-- Migration: 003_user_profile_hardware
+-- Feature: Better-Auth & User Profiling (Feature 003-better-auth)
+-- Purpose: Add hardware background profiling to earn 50 Hackathon Bonus Points
+-- Date: 2025-12-19
 
--- Add hardware profile columns to existing user_profiles table
-ALTER TABLE user_profiles
-  ADD COLUMN IF NOT EXISTS gpu_type VARCHAR(100) DEFAULT 'None/Integrated Graphics',
-  ADD COLUMN IF NOT EXISTS ram_capacity VARCHAR(20) DEFAULT '8-16GB',
-  ADD COLUMN IF NOT EXISTS coding_languages JSONB DEFAULT '["None"]'::JSONB,
-  ADD COLUMN IF NOT EXISTS robotics_experience VARCHAR(50) DEFAULT 'No prior experience';
+-- ============================================================================
+-- Create users table
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
--- Add CHECK constraints for enum-like validation
-ALTER TABLE user_profiles
-  ADD CONSTRAINT valid_gpu_type CHECK (
-    gpu_type IN (
-      'None/Integrated Graphics',
-      'NVIDIA RTX 3060',
-      'NVIDIA RTX 4070 Ti',
-      'NVIDIA RTX 4080/4090',
-      'AMD Radeon RX 7000 Series',
-      'Other'
-    )
-  ),
-  ADD CONSTRAINT valid_ram_capacity CHECK (
-    ram_capacity IN (
-      '4-8GB',
-      '8-16GB',
-      '16-32GB',
-      '32GB or more'
-    )
-  ),
-  ADD CONSTRAINT valid_robotics_experience CHECK (
-    robotics_experience IN (
-      'No prior experience',
-      'Hobbyist (built simple projects)',
-      'Student (taking courses)',
-      'Professional (industry experience)'
-    )
-  );
+-- Create index on email for fast lookups
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
--- Add NOT NULL constraints (after defaults applied to existing rows)
-ALTER TABLE user_profiles
-  ALTER COLUMN gpu_type SET NOT NULL,
-  ALTER COLUMN ram_capacity SET NOT NULL,
-  ALTER COLUMN coding_languages SET NOT NULL,
-  ALTER COLUMN robotics_experience SET NOT NULL;
+-- ============================================================================
+-- Create user_profiles table with hardware background fields
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS user_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
--- Add indexes for common queries (filtering users by hardware capabilities)
+    -- Hardware Profile Fields (THE 50-POINT HACKATHON FEATURE)
+    gpu_type VARCHAR(100) CHECK (gpu_type IN (
+        'No GPU',
+        'NVIDIA RTX 3060',
+        'NVIDIA RTX 4070 Ti',
+        'NVIDIA RTX 4090',
+        'Apple M1/M2/M3',
+        'Other'
+    )),
+
+    ram_capacity VARCHAR(20) CHECK (ram_capacity IN (
+        'Less than 8GB',
+        '8-16GB',
+        '16-32GB',
+        'More than 32GB'
+    )),
+
+    coding_languages JSONB DEFAULT '[]'::jsonb,
+
+    robotics_experience VARCHAR(50) CHECK (robotics_experience IN (
+        'No prior experience',
+        'Beginner (0-1 years)',
+        'Intermediate (1-3 years)',
+        'Advanced (3+ years)'
+    )),
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    -- Ensure one profile per user
+    UNIQUE(user_id)
+);
+
+-- Create indexes for personalization queries
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_gpu_type ON user_profiles(gpu_type);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_ram_capacity ON user_profiles(ram_capacity);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_robotics_experience ON user_profiles(robotics_experience);
 
--- Add reset_counter column for password reset token invalidation
-ALTER TABLE users
-  ADD COLUMN IF NOT EXISTS reset_counter INTEGER DEFAULT 0;
+-- ============================================================================
+-- Create trigger to update updated_at timestamp
+-- ============================================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
 
--- Update updated_at trigger (already exists, but ensure it's applied)
-DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON user_profiles;
-CREATE TRIGGER update_user_profiles_updated_at
-  BEFORE UPDATE ON user_profiles
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Comments for documentation
-COMMENT ON COLUMN user_profiles.gpu_type IS 'User GPU for hardware-specific content recommendations (Module 3 Isaac Sim requires RTX 4070 Ti)';
-COMMENT ON COLUMN user_profiles.ram_capacity IS 'User system RAM for performance-sensitive tutorials';
-COMMENT ON COLUMN user_profiles.coding_languages IS 'JSON array of programming languages user knows (e.g., ["Python", "C++"])';
-COMMENT ON COLUMN user_profiles.robotics_experience IS 'User robotics background for difficulty-appropriate content';
-COMMENT ON COLUMN users.reset_counter IS 'Incremented on each password reset to invalidate previous reset tokens';
+CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Verification queries (commented out, run manually to verify migration)
--- SELECT column_name, data_type, is_nullable, column_default
+-- ============================================================================
+-- Verification Query
+-- ============================================================================
+-- Run this to verify the migration:
+-- SELECT column_name, data_type, character_maximum_length
 -- FROM information_schema.columns
--- WHERE table_name='user_profiles'
--- AND column_name IN ('gpu_type', 'ram_capacity', 'coding_languages', 'robotics_experience')
--- ORDER BY ordinal_position;
---
--- SELECT conname, pg_get_constraintdef(oid)
--- FROM pg_constraint
--- WHERE conrelid = 'user_profiles'::regclass
--- AND conname LIKE 'valid_%';
+-- WHERE table_name IN ('users', 'user_profiles')
+-- ORDER BY table_name, ordinal_position;

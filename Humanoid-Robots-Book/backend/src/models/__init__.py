@@ -1,41 +1,26 @@
 """
-Pydantic Models Package
+Pydantic Models for API Request/Response Schemas
 Feature: 003-better-auth
-Purpose: Export all request/response schemas for authentication and profile management
 """
 
 from .auth import (
     SignupRequest,
     SigninRequest,
     AuthResponse,
-    PasswordResetRequest,
-    GPUType,
-    RAMCapacity,
-    CodingLanguage,
-    RoboticsExperience
+    SignoutRequest,
 )
-
 from .profile import (
     UserProfile,
     ProfileUpdateRequest,
-    ProfileUpdateResponse
+    ProfileUpdateResponse,
 )
 
 __all__ = [
-    # Authentication schemas
     "SignupRequest",
     "SigninRequest",
     "AuthResponse",
-    "PasswordResetRequest",
-
-    # Profile schemas
+    "SignoutRequest",
     "UserProfile",
     "ProfileUpdateRequest",
     "ProfileUpdateResponse",
-
-    # Enum types
-    "GPUType",
-    "RAMCapacity",
-    "CodingLanguage",
-    "RoboticsExperience",
 ]
