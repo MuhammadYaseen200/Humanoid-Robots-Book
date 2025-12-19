@@ -1,21 +1,3 @@
-<!--
-SYNC IMPACT REPORT
-Version Change: N/A → 1.0.0
-Modified Principles: N/A (Initial constitution)
-Added Sections:
-  - Core Principles (7 principles)
-  - Technology Stack Requirements
-  - Development Workflow
-  - Quality Gates
-  - Governance
-Removed Sections: None
-Templates Requiring Updates:
-  ✅ plan-template.md - Constitution Check section will reference these principles
-  ✅ spec-template.md - User stories align with reusable intelligence principle
-  ✅ tasks-template.md - Task organization reflects spec-driven development
-Follow-up TODOs: None - all placeholders filled
--->
-
 # Physical AI & Humanoid Robotics Textbook Constitution
 
 ### I. Spec-Driven Development (SDD)
