@@ -335,6 +335,12 @@ class Settings(BaseSettings):
     chunk_overlap: int = 50
     top_k_retrieval: int = 5
 
+    # --- Authentication Settings (Feature 003-better-auth) ---
+    auth_secret: str = ""  # JWT signing secret (minimum 32 characters)
+    jwt_algorithm: str = "HS256"
+    jwt_expiration: int = 86400  # 24 hours in seconds
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # Ignore extra .env variables to prevent crashes
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
