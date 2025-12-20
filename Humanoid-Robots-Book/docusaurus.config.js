@@ -96,6 +96,12 @@ const config = {
             label: 'GitHub',
             position: 'right',
           },
+          {
+            type: 'default',
+            position: 'right',
+            className: 'header-auth-btn',
+            label: 'Auth', // Placeholder - will be replaced by AuthButton component
+          },
         ],
       },
       footer: {
