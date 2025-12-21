@@ -97,10 +97,10 @@ const config = {
             position: 'right',
           },
           {
-            type: 'default',
+            type: 'html',
             position: 'right',
             className: 'header-auth-btn',
-            label: 'Auth', // Placeholder - will be replaced by AuthButton component
+            value: '<div id="auth-button-placeholder"></div>', // Will be replaced by AuthButton wrapper
           },
         ],
       },
