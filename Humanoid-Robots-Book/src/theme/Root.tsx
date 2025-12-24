@@ -1,9 +1,10 @@
 /**
  * Root Component Wrapper for Docusaurus
- * Injects ChatWidget globally across all pages
+ * Provides AuthContext and injects ChatWidget globally across all pages
  */
 
 import React from 'react';
+import { AuthProvider } from '@site/src/context/AuthContext';
 import ChatWidget from '@site/src/components/ChatWidget';
 
 // ExecutionEnvironment is used to detect if we're running in browser
@@ -16,11 +17,11 @@ interface RootProps {
 
 const Root: React.FC<RootProps> = ({ children }) => {
   return (
-    <>
+    <AuthProvider>
       {children}
       {/* Only render ChatWidget on client-side (browser) */}
       {ExecutionEnvironment.canUseDOM && <ChatWidget />}
-    </>
+    </AuthProvider>
   );
 };
 
