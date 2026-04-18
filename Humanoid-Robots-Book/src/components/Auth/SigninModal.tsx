@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { X, LogIn } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '@site/src/context/AuthContext';
 
 interface SigninModalProps {
   isOpen: boolean;

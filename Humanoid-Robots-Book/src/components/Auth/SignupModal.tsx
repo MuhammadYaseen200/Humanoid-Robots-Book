@@ -9,7 +9,7 @@
 
 import React, { useState } from 'react';
 import { X, ChevronRight, ChevronLeft, Check, Cpu, HardDrive, Code, Award } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '@site/src/context/AuthContext';
 
 interface SignupModalProps {
   isOpen: boolean;

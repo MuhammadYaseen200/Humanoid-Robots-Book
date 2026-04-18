@@ -1,0 +1,54 @@
+# ── SECRETS — NEVER COMMIT ────────────────────────────────────────────────
+.env
+.env.local
+.env.*
+*.env
+credentials.json
+token.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.credentials
+.credentials.json
+
+# ── CLAUDE CODE — LOCAL ARTIFACTS ─────────────────────────────────────────
+**/.claude/settings.local.json
+**/.claude.backup/
+**/.claude/debug/
+**/.claude/paste-cache/
+**/.claude/history.jsonl
+**/.claude/sessions/
+**/.claude/shell-snapshots/
+
+# ── OS / EDITOR ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── NODE / PYTHON BUILD ────────────────────────────────────────────────────
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.next/
+dist/
+build/
+.cache/
+*.tsbuildinfo
+
+# ── LOGS & TEMP ─────────────────────────────────────────────────────────────
+*.log
+*.tmp
+*.temp
+logs/
+
+# ── DATABASE ─────────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3

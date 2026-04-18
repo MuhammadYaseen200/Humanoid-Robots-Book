@@ -8,9 +8,9 @@
 
 import React, { useState } from 'react';
 import { LogIn, LogOut, User, UserPlus } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import SigninModal from '../../components/Auth/SigninModal';
-import SignupModal from '../../components/Auth/SignupModal';
+import { useAuth } from '@site/src/context/AuthContext';
+import SigninModal from '@site/src/components/Auth/SigninModal';
+import SignupModal from '@site/src/components/Auth/SignupModal';
 
 export default function AuthButton() {
   const { user, signout } = useAuth();
