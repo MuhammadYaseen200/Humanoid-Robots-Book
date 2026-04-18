@@ -1,241 +1,295 @@
 # Feature Specification: Better-Auth & User Profiling
 
 **Feature Branch**: `003-better-auth`
-**Created**: 2025-12-23
-**Status**: Implemented
-**Input**: User description: "Implement Signup/Signin using Better-Auth (Python/FastAPI). Ask 'Hardware Background' questions during signup (GPU type, RAM, Coding Language). Store this profile in Neon Postgres so we can Personalize content later. This feature earns the 50 Bonus Points defined in the Hackathon Requirements."
+**Created**: 2025-12-16
+**Status**: Draft
+**Input**: User description: "Better-Auth & User Profiling feature for hackathon bonus points: Implement Signup/Signin using Better-Auth (Python/FastAPI), ask Hardware Background questions during signup (GPU type, RAM, Coding Language), and store profiles in Neon Postgres for content personalization."
 
-## User Scenarios & Testing
+## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Hardware-Aware Signup with Profile Collection (Priority: P1)
+### User Story 1 - New User Signup with Hardware Profiling (Priority: P1)
 
-A new user visiting the Physical AI textbook platform can create an account by providing their email, password, and name in Step 1, then complete a hardware profiling questionnaire in Step 2 (GPU type, RAM capacity, coding languages, robotics experience). Upon successful signup, the system creates their account, stores their hardware profile in the database, and generates a JWT token containing their profile data for instant personalization without additional database queries.
+A first-time visitor wants to create an account to access personalized content and unlock premium features (content personalization, Urdu translation). During signup, they provide their email, password, and answer hardware/software background questions so the system can later recommend appropriate learning paths and content difficulty levels.
 
-**Why this priority**: This is the core MVP that earns the 50 bonus hackathon points. It demonstrates hardware-aware personalization capabilities and enables the platform to tailor content recommendations based on user capabilities (e.g., show cloud-based paths for users without GPUs, suggest beginner content for users with no robotics experience).
+**Why this priority**: This is the foundation for earning the 50 bonus points. Without signup and profile collection, content personalization (another 50 points) cannot function. This is the MVP for the authentication feature.
 
-**Independent Test**: Open the platform homepage, click "Sign Up", complete the 2-step wizard with hardware details, verify account creation, check that JWT token contains hardware claims (gpu_type, ram_capacity, coding_languages, robotics_experience), and confirm navbar shows user name and GPU type.
+**Independent Test**: Can be fully tested by visiting the site, clicking "Sign Up", completing the registration form with hardware questions, and verifying the account is created in the database with all profile fields populated.
 
 **Acceptance Scenarios**:
 
-1. **Given** a visitor clicks "Sign Up" on the navbar, **When** they complete Step 1 (email: test@example.com, password: SecurePass123!, name: "John Doe"), **Then** the UI advances to Step 2 showing hardware profiling form
-2. **Given** a user is on Step 2 of signup, **When** they select GPU: "NVIDIA RTX 4070 Ti", RAM: "16-32GB", Languages: ["Python", "C++"], Experience: "Intermediate (1-3 years)" and submit, **Then** the system creates user account, user_profile record, returns JWT token with embedded profile, and redirects to homepage with authenticated navbar
-3. **Given** a user completes signup, **When** the JWT token is decoded, **Then** it contains claims: user_id, email, name, gpu_type, ram_capacity, coding_languages (array), robotics_experience
-4. **Given** an authenticated user views the navbar, **When** the page loads, **Then** the navbar displays their name and GPU type (e.g., "John Doe" with "NVIDIA RTX 4070 Ti" subtitle)
+1. **Given** a new visitor on any chapter page, **When** they click "Sign Up" button in the navigation bar, **Then** a signup modal appears with email, password, and hardware background fields
+2. **Given** the signup form is displayed, **When** the user enters valid email (student@example.com), strong password (min 8 chars with uppercase, number, symbol), selects GPU type ("None/Integrated", "NVIDIA RTX 3060", "NVIDIA RTX 4070 Ti", "Other"), RAM ("4-8GB", "8-16GB", "16-32GB", "32GB+"), and primary coding language ("None", "Python", "C++", "JavaScript", "Other"), **Then** the system creates user account and profile, returns JWT token, and redirects to welcome page
+3. **Given** user enters email already in database, **When** they submit signup form, **Then** system displays error "Email already registered. Please sign in instead." with link to signin form
+4. **Given** user enters weak password (less than 8 characters), **When** they submit form, **Then** system displays error "Password must be at least 8 characters with uppercase, number, and symbol"
+5. **Given** user successfully signs up, **When** the backend stores their profile, **Then** database contains user record with hashed password (bcrypt) and user_profile record with gpu_type, ram_capacity, coding_experience fields populated
 
 ---
 
-### User Story 2 - Secure Authentication with JWT Stateless Sessions (Priority: P1)
+### User Story 2 - Returning User Signin (Priority: P2)
 
-Returning users can sign in using their email and password to receive a JWT token that persists their authentication state across page reloads and sessions. The token expires after 24 hours for security, and users can sign out at any time to invalidate their client-side session.
+A returning user who previously created an account wants to sign in to access their personalized content settings, chat history, and profile preferences. They provide their registered email and password to authenticate.
 
-**Why this priority**: Core authentication functionality required for any personalized platform. JWT stateless approach eliminates database lookups on every request, improving performance and scalability.
+**Why this priority**: Authentication flow is incomplete without signin. This enables returning users to access their profiles and is required for the full 50 bonus points.
 
-**Independent Test**: Create an account, sign out, sign in again with correct credentials, verify JWT token is stored in localStorage, refresh page and confirm user remains authenticated, sign out and verify token is cleared.
+**Independent Test**: Create a test account, sign out, then attempt to sign in with correct and incorrect credentials to verify authentication logic.
 
 **Acceptance Scenarios**:
 
-1. **Given** a registered user (email: test@example.com, password: SecurePass123!), **When** they click "Sign In", enter credentials, and submit, **Then** the system validates credentials, returns JWT token, stores it in localStorage, and updates navbar to authenticated state
-2. **Given** an authenticated user, **When** they refresh the page, **Then** the system reads JWT from localStorage, decodes user data, and maintains authenticated state without server request
-3. **Given** an authenticated user, **When** they click "Sign Out" in the navbar, **Then** the system removes JWT from localStorage, resets auth context to null, and navbar shows "Sign In" / "Sign Up" buttons
-4. **Given** a user with invalid credentials (wrong password), **When** they attempt to sign in, **Then** the system returns 401 error with message "Invalid credentials" and does not issue a token
+1. **Given** a returning user on any page, **When** they click "Sign In" button in navigation, **Then** signin modal appears with email and password fields
+2. **Given** user enters correct email and password, **When** they submit signin form, **Then** system validates credentials, generates JWT token with user profile claims (user_id, email, gpu_type, ram_capacity, coding_experience), returns token to frontend, and closes modal showing user as logged in
+3. **Given** user enters incorrect password, **When** they submit form, **Then** system displays error "Invalid email or password" without revealing which field is wrong (security best practice)
+4. **Given** user enters email not in database, **When** they submit form, **Then** system displays same "Invalid email or password" error to prevent email enumeration attacks
+5. **Given** user successfully signs in, **When** frontend receives JWT token, **Then** token is stored securely (httpOnly cookie preferred, or localStorage with XSS protections), and user's name/email appears in navigation bar with "Sign Out" option
 
 ---
 
-### User Story 3 - Password Security & Validation (Priority: P1)
+### User Story 3 - Profile Management (Priority: P3)
 
-Users must create strong passwords that meet minimum security requirements (8+ characters, uppercase, lowercase, number, special character). Passwords are hashed using bcrypt with async execution to prevent blocking the event loop during signup/signin operations.
+A logged-in user wants to view and update their hardware/software background profile after signup because they upgraded their GPU, learned a new programming language, or want to adjust their learning difficulty level.
 
-**Why this priority**: Critical for security and user trust. Weak passwords compromise all user data. Non-blocking async hashing ensures good UX (fast response times) even with slow hashing algorithms.
+**Why this priority**: Profile editing enhances user experience but is not strictly required for bonus points. Users can re-register if needed, but editing improves retention.
 
-**Independent Test**: Attempt signup with weak passwords ("pass", "12345678", "Password"), verify each is rejected with specific error messages, then use strong password ("SecurePass123!") and verify acceptance with ~400ms response time.
+**Independent Test**: Sign in as existing user, navigate to profile page, change GPU type from "None" to "RTX 4070 Ti", save changes, sign out, sign in again, and verify updated GPU type is reflected in profile.
 
 **Acceptance Scenarios**:
 
-1. **Given** a user attempts signup with password "pass", **When** they submit Step 1, **Then** the system rejects it with error "Password must be at least 8 characters"
-2. **Given** a user attempts signup with password "password123", **When** they submit Step 1, **Then** the system rejects it with error "Password must contain at least one uppercase letter"
-3. **Given** a user attempts signup with password "PASSWORD123", **When** they submit Step 1, **Then** the system rejects it with error "Password must contain at least one lowercase letter"
-4. **Given** a user attempts signup with password "Password", **When** they submit Step 1, **Then** the system rejects it with error "Password must contain at least one number"
-5. **Given** a user attempts signup with password "Password123", **When** they submit Step 1, **Then** the system rejects it with error "Password must contain at least one special character"
-6. **Given** a user submits valid signup with password "SecurePass123!", **When** the backend hashes the password, **Then** hashing completes in 200-300ms using async bcrypt without blocking other requests
+1. **Given** logged-in user clicks their name in navigation, **When** dropdown menu appears, **Then** "My Profile" option is visible
+2. **Given** user navigates to profile page, **When** page loads, **Then** form displays current values for email (read-only), GPU type (dropdown), RAM capacity (dropdown), coding languages (multi-select), and difficulty preference (beginner/intermediate/advanced radio buttons)
+3. **Given** user changes GPU type from "None" to "RTX 4070 Ti" and clicks Save, **When** backend receives update request with valid JWT, **Then** user_profiles table is updated, JWT is refreshed with new gpu_type claim, and success message "Profile updated successfully" is displayed
+4. **Given** user attempts to access profile page without authentication, **When** they navigate to /profile URL directly, **Then** system redirects to signin modal with message "Please sign in to view your profile"
 
 ---
 
-### User Story 4 - Navbar Authentication UI Integration (Priority: P2)
+### User Story 4 - Password Reset Flow (Priority: P4)
 
-The Docusaurus navbar dynamically displays authentication state: unauthenticated users see "Sign In" and "Sign Up" buttons, while authenticated users see their name, GPU type, profile icon, and "Sign Out" button. Clicking authentication buttons opens modal dialogs without navigating away from the current page.
+A user who forgot their password wants to reset it via email link so they can regain access to their account without contacting support.
 
-**Why this priority**: Provides seamless UX for authentication without disrupting reading flow. Users can authenticate from any page without losing their place in the textbook.
+**Why this priority**: Password reset improves user experience but is not required for hackathon bonus points. Many users can re-register with new email if needed. This is a nice-to-have for production readiness.
 
-**Independent Test**: Load any textbook page, verify unauthenticated state shows Sign In/Sign Up, click Sign Up, complete registration in modal, verify navbar updates to show user profile without page navigation.
-
-**Acceptance Scenarios**:
-
-1. **Given** an unauthenticated user views any page, **When** they look at the navbar (top-right), **Then** they see two buttons: "Sign In" and "Sign Up"
-2. **Given** an unauthenticated user clicks "Sign Up", **When** the modal opens, **Then** the current page content remains visible (modal overlay), and closing modal returns to reading without page reload
-3. **Given** an authenticated user (John Doe, NVIDIA RTX 4070 Ti) views any page, **When** they look at the navbar, **Then** they see: name ("John Doe"), GPU subtitle ("NVIDIA RTX 4070 Ti"), user icon, and "Sign Out" button
-4. **Given** an authenticated user clicks "Sign Out", **When** the action completes, **Then** the navbar immediately updates to show "Sign In" / "Sign Up" without page reload
-
----
-
-### User Story 5 - Email Uniqueness & Validation (Priority: P2)
-
-The system prevents duplicate accounts by enforcing unique email addresses at both the application and database levels. Email addresses must be valid format (RFC 5322), and attempting to register with an existing email returns a clear error message.
-
-**Why this priority**: Prevents user confusion and data integrity issues. Users should not be able to create multiple accounts with the same email.
-
-**Independent Test**: Register user with test@example.com, attempt to register again with same email, verify rejection with error "Email already exists", verify email format validation rejects invalid emails.
+**Independent Test**: Click "Forgot Password", enter registered email, receive reset link via email (or see link in backend logs for testing), click link, set new password, and sign in with new credentials.
 
 **Acceptance Scenarios**:
 
-1. **Given** a user registers with email "test@example.com", **When** another user attempts signup with "test@example.com", **Then** the system returns 400 error with message "Email already exists"
-2. **Given** a user attempts signup with email "invalid-email", **When** they submit Step 1, **Then** the system rejects it with error "Invalid email format"
-3. **Given** a user attempts signup with email "test@", **When** they submit Step 1, **Then** the system rejects it with error "Invalid email format"
-4. **Given** the database has UNIQUE constraint on users.email column, **When** a duplicate email bypasses application validation, **Then** the database rejects the insert and returns constraint violation error
+1. **Given** user clicks "Forgot Password" link on signin modal, **When** forgot password form appears, **Then** user can enter their registered email address
+2. **Given** user enters valid registered email, **When** they submit form, **Then** system generates password reset token (JWT with 1-hour expiration), sends email with reset link to user's email address, and displays "Password reset link sent to your email" message
+3. **Given** user clicks reset link in email, **When** they land on password reset page with valid token, **Then** form displays two fields: "New Password" and "Confirm Password"
+4. **Given** user enters matching strong passwords and submits, **When** backend validates token and updates password hash, **Then** success message "Password updated successfully. Please sign in with your new password" is displayed and user is redirected to signin modal
 
 ---
 
 ### Edge Cases
 
-- **What happens when a user closes the signup modal after completing Step 1 but before Step 2?** The modal state resets, and reopening requires starting from Step 1 again. No partial account is created in the database until both steps complete successfully.
+- **What happens when user tries to sign up without providing hardware background answers?** System displays validation error: "Please complete all hardware profile questions. This helps us personalize your learning experience." All fields are required.
 
-- **How does the system handle JWT token expiration?** Tokens expire after 24 hours (configurable via JWT_EXPIRATION_SECONDS). When an expired token is decoded, the AuthContext treats the user as unauthenticated and shows Sign In/Sign Up buttons. Users must sign in again to get a new token.
+- **How does system handle weak passwords during signup?** Frontend validates password strength in real-time (as user types) with visual indicators (weak/medium/strong). Backend validates on submission and rejects passwords shorter than 8 characters or missing uppercase/number/symbol with clear error message.
 
-- **What happens if the backend API is unreachable during signup/signin?** The frontend displays error message: "Unable to connect to authentication service. Please check your internet connection and try again." The user remains on the modal to retry.
+- **What happens if user closes signup modal halfway through filling form?** Form data is not persisted. User must restart signup process. (Session-based form saving is out of scope for MVP.)
 
-- **How does the system handle users who select "No GPU" but want to use the platform?** The hardware profile is stored in their JWT and database record. Future features can use this data to show cloud-based alternatives or CPU-compatible content paths. No functionality is blocked based on hardware.
+- **How does system handle concurrent signin attempts from different devices?** JWT tokens are stateless, so user can be logged in on multiple devices simultaneously. Each device gets its own JWT. This is acceptable for MVP. Token revocation (blacklist) is out of scope.
 
-- **What happens when localStorage is disabled or unavailable?** The AuthContext attempts to read JWT from localStorage on mount. If unavailable (disabled cookies, private browsing strict modes), the user appears unauthenticated and must sign in each page load. A warning could be shown: "Enable cookies for persistent login."
+- **What happens when JWT token expires while user is actively using the site?** When token expires (24-hour default), next API request to protected endpoint (/personalize, /translate, /profile) returns 401 Unauthorized. Frontend detects this, clears expired token, and displays modal: "Your session has expired. Please sign in again." User can sign in without losing their place on the current page.
 
-- **How does the system handle special characters in names or coding languages?** Names and coding languages are stored as UTF-8 strings in Postgres. Input validation allows letters, spaces, hyphens, apostrophes for names. Coding languages are selected from predefined options (Python, C++, JavaScript, Rust, Go, Other) to prevent injection attacks.
+- **How does system handle special characters in passwords (emojis, international characters)?** System accepts any UTF-8 characters in passwords. Bcrypt hashing supports UTF-8. No restrictions on character sets to accommodate international users.
 
-- **What happens if a user submits signup with very long inputs?** Backend validation enforces limits: email ≤ 255 chars, password ≤ 128 chars, name ≤ 255 chars. Coding languages array limited to 10 selections. Exceeding limits returns 400 error with message specifying the field and limit.
+- **What happens if user enters invalid email format during signup?** Frontend validates email format in real-time using HTML5 email input type. Backend validates using regex pattern (RFC 5322 compliant). Invalid emails are rejected with error: "Please enter a valid email address."
 
-- **How does the system handle concurrent signup attempts with the same email?** The database UNIQUE constraint on users.email prevents race conditions. If two requests arrive simultaneously, the first transaction commits successfully, and the second receives a constraint violation error, which the backend translates to "Email already exists" response.
+- **How does system prevent email enumeration attacks during signin?** System returns generic "Invalid email or password" error for both wrong email and wrong password. Response time is constant (no timing attacks) by always performing bcrypt hash comparison even if email doesn't exist.
 
-## Requirements
+- **What happens when database connection fails during signup?** Backend catches database exception, logs error with request ID for debugging, and returns user-friendly error: "Unable to create account. Please try again later." (Error ID: XYZ for support reference). Frontend displays error with retry button.
+
+- **How does system handle user clicking signup submit button multiple times rapidly?** Frontend disables submit button after first click and shows loading spinner. Backend uses database email unique constraint to prevent duplicate accounts. If duplicate detected, returns error handled by frontend.
+
+## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide a POST `/api/auth/signup` endpoint accepting email, password, name, gpu_type, ram_capacity, coding_languages (array), and robotics_experience
-- **FR-002**: System MUST validate email format using RFC 5322 standard (via pydantic EmailStr)
-- **FR-003**: System MUST enforce password requirements: minimum 8 characters, maximum 128 characters, at least one uppercase letter, one lowercase letter, one number, one special character
-- **FR-004**: System MUST hash passwords using bcrypt with salt rounds = 12, executed asynchronously to prevent blocking
-- **FR-005**: System MUST store user records in `users` table with columns: id (UUID), email (unique), password_hash, name, created_at (timestamp)
-- **FR-006**: System MUST store hardware profile records in `user_profiles` table with columns: id (UUID), user_id (foreign key to users), gpu_type, ram_capacity, coding_languages (JSONB array), robotics_experience
-- **FR-007**: System MUST enforce UNIQUE constraint on users.email at database level
-- **FR-008**: System MUST return JWT token on successful signup containing claims: user_id, email, name, gpu_type, ram_capacity, coding_languages, robotics_experience, expiration (exp)
-- **FR-009**: System MUST provide a POST `/api/auth/signin` endpoint accepting email and password
-- **FR-010**: System MUST verify passwords using async bcrypt comparison against stored password_hash
-- **FR-011**: System MUST return 401 Unauthorized for invalid credentials during signin with message "Invalid credentials"
-- **FR-012**: System MUST sign JWT tokens using HS256 algorithm with AUTH_SECRET key (minimum 32 characters)
-- **FR-013**: System MUST set JWT expiration to 24 hours from issuance (configurable via JWT_EXPIRATION_SECONDS environment variable)
-- **FR-014**: Frontend MUST display 2-step signup modal: Step 1 (email, password, name), Step 2 (GPU type, RAM capacity, coding languages multi-select, robotics experience)
-- **FR-015**: Frontend MUST validate Step 1 fields before advancing to Step 2 (non-empty name, valid email format, password meets strength requirements)
-- **FR-016**: Frontend MUST provide predefined options for GPU type: "No GPU", "NVIDIA RTX 3060", "NVIDIA RTX 4070 Ti", "NVIDIA RTX 4090", "Apple M1/M2/M3", "Other"
-- **FR-017**: Frontend MUST provide predefined options for RAM capacity: "Less than 8GB", "8-16GB", "16-32GB", "More than 32GB"
-- **FR-018**: Frontend MUST provide multi-select checkboxes for coding languages: Python, C++, JavaScript, Rust, Go, Other (allow selecting multiple)
-- **FR-019**: Frontend MUST provide dropdown for robotics experience: "No prior experience", "Beginner (0-1 years)", "Intermediate (1-3 years)", "Advanced (3+ years)"
-- **FR-020**: Frontend MUST store JWT token in browser localStorage under key "auth_token" on successful signup/signin
-- **FR-021**: Frontend MUST decode JWT token on AuthContext initialization to restore user session across page reloads
-- **FR-022**: Frontend MUST provide client-side JWT decoding function using base64 URL-safe decoding (no server request required)
-- **FR-023**: Frontend MUST remove JWT token from localStorage on signout
-- **FR-024**: Frontend MUST display authentication state in Docusaurus navbar via custom NavbarItem component
-- **FR-025**: Navbar MUST show "Sign In" and "Sign Up" buttons when user is unauthenticated
-- **FR-026**: Navbar MUST show user name, GPU type, user icon, and "Sign Out" button when user is authenticated
-- **FR-027**: Frontend MUST open signup/signin modals without navigating away from current page (overlay approach)
-- **FR-028**: Frontend MUST close modals on successful authentication and update navbar state immediately
-- **FR-029**: System MUST return 400 Bad Request for signup attempts with duplicate email containing message "Email already exists"
-- **FR-030**: System MUST validate GPU type against allowed enum values at database level (CHECK constraint)
-- **FR-031**: System MUST validate RAM capacity against allowed enum values at database level (CHECK constraint)
-- **FR-032**: System MUST validate robotics experience against allowed enum values at database level (CHECK constraint)
-- **FR-033**: System MUST cascade delete user_profiles records when parent users record is deleted (ON DELETE CASCADE)
+**Authentication Core**
+
+- **FR-001**: System MUST provide signup form accessible from any page via "Sign Up" button in navigation bar
+- **FR-002**: System MUST collect email address (unique identifier), password (minimum 8 characters), and full name during signup
+- **FR-003**: System MUST hash passwords using bcrypt with salt rounds ≥ 12 before storing in database
+- **FR-004**: System MUST validate email format using RFC 5322 compliant regex pattern on both frontend and backend
+- **FR-005**: System MUST enforce password requirements: minimum 8 characters, at least one uppercase letter, one number, and one symbol
+- **FR-006**: System MUST check email uniqueness in database before creating account and display clear error if email already exists
+- **FR-007**: System MUST generate JWT token after successful signup/signin containing user_id, email, and profile claims (gpu_type, ram_capacity, coding_experience)
+- **FR-008**: System MUST sign JWT tokens with AUTH_SECRET environment variable using HS256 algorithm
+- **FR-009**: System MUST set JWT expiration to 24 hours from issuance time
+- **FR-010**: System MUST provide signin form with email and password fields accessible via "Sign In" button
+- **FR-011**: System MUST validate signin credentials by comparing bcrypt hash of submitted password against stored password_hash
+- **FR-012**: System MUST return generic error "Invalid email or password" for both incorrect email and incorrect password to prevent email enumeration
+- **FR-013**: System MUST update last_login timestamp in users table upon successful signin
+
+**Hardware/Software Profiling**
+
+- **FR-014**: Signup form MUST include dropdown field "GPU Type" with options: "None/Integrated Graphics", "NVIDIA RTX 3060", "NVIDIA RTX 4070 Ti", "NVIDIA RTX 4080/4090", "AMD Radeon RX 7000 Series", "Other (please specify in profile)"
+- **FR-015**: Signup form MUST include dropdown field "RAM Capacity" with options: "4-8GB", "8-16GB", "16-32GB", "32GB or more"
+- **FR-016**: Signup form MUST include multi-select field "Programming Languages" with options: "None (new to programming)", "Python", "C++", "JavaScript/TypeScript", "Java", "C#", "Rust", "Other"
+- **FR-017**: Signup form MUST include radio button field "Robotics Experience" with options: "No prior experience", "Hobbyist (built simple projects)", "Student (taking courses)", "Professional (industry experience)"
+- **FR-018**: System MUST store hardware/software profile answers in user_profiles table with columns: gpu_type (VARCHAR), ram_capacity (VARCHAR), coding_languages (JSONB array), robotics_experience (VARCHAR)
+- **FR-019**: System MUST require all profile questions to be answered during signup (no optional fields) to ensure data completeness for personalization
+- **FR-020**: System MUST include profile fields (gpu_type, ram_capacity, coding_languages, robotics_experience) in JWT token claims for stateless access by personalization endpoints
+
+**Profile Management**
+
+- **FR-021**: System MUST provide "My Profile" page accessible to authenticated users via navigation dropdown under user's name
+- **FR-022**: Profile page MUST display current values for all hardware/software profile fields in editable form
+- **FR-023**: System MUST allow users to update their profile fields and save changes
+- **FR-024**: System MUST validate JWT token on profile update requests and reject unauthorized requests with 401 status
+- **FR-025**: System MUST refresh JWT token with updated profile claims after successful profile update
+- **FR-026**: System MUST prevent users from changing their email address on profile page (email is permanent identifier; users must contact support to change email)
+
+**Security & Session Management**
+
+- **FR-027**: System MUST store JWT tokens in httpOnly cookies (preferred) or localStorage with XSS protections
+- **FR-028**: System MUST validate JWT signature and expiration on every request to protected endpoints (/api/personalize, /api/translate, /api/profile)
+- **FR-029**: System MUST return 401 Unauthorized status with error message "Invalid or expired token" when JWT validation fails
+- **FR-030**: System MUST provide "Sign Out" functionality that clears JWT token from browser storage and redirects to homepage
+- **FR-031**: System MUST log all authentication events (signup, signin, failed signin attempts) to user_activity table for security monitoring
+- **FR-032**: System MUST rate-limit authentication endpoints to 10 requests per IP per minute to prevent brute-force attacks
+- **FR-033**: System MUST never log passwords (plaintext or hashed) in application logs or error messages
+
+**Password Reset (Optional for MVP)**
+
+- **FR-034**: System SHOULD provide "Forgot Password" link on signin modal
+- **FR-035**: System SHOULD send password reset email with time-limited token (1-hour expiration) when user requests password reset
+- **FR-036**: System SHOULD validate reset token and allow user to set new password via reset link
+- **FR-037**: System SHOULD invalidate all existing JWT tokens for user after password reset (force re-signin on all devices)
 
 ### Key Entities
 
-- **User**: Represents an account holder with authentication credentials (email, password_hash, name) and metadata (id, created_at). Each user has exactly one associated hardware profile.
+- **User**: Represents an authenticated user account
+  - Attributes: unique email, hashed password, full name, account creation timestamp, last login timestamp, active status
+  - Relationships: Has one UserProfile, has many ChatSessions, has many UserActivityLogs
 
-- **User Profile**: Represents hardware and experience data collected during signup to enable personalization. Contains gpu_type (enum: No GPU, NVIDIA RTX 3060, RTX 4070 Ti, RTX 4090, Apple M1/M2/M3, Other), ram_capacity (enum: <8GB, 8-16GB, 16-32GB, >32GB), coding_languages (array: Python, C++, JavaScript, Rust, Go, Other), robotics_experience (enum: No prior experience, Beginner 0-1y, Intermediate 1-3y, Advanced 3+y). Linked to User via user_id foreign key.
+- **UserProfile**: Extended profile information for personalization
+  - Attributes: GPU type, RAM capacity, programming languages (array), robotics experience level, learning difficulty preference, completed chapters (array)
+  - Relationships: Belongs to one User
 
-- **JWT Token**: Short-lived authentication credential (24-hour expiration) issued on successful signup/signin. Contains embedded user profile claims to enable stateless personalization without database queries. Stored client-side in localStorage and included in Authorization header for authenticated API requests.
+- **JWTToken** (logical entity, not stored in database): Authentication credential
+  - Claims: user_id (subject), email, gpu_type, ram_capacity, coding_languages, robotics_experience, expiration timestamp
+  - Lifecycle: Issued on signup/signin, validated on each protected request, expires after 24 hours
 
-## Success Criteria
+- **AuthenticationEvent** (stored in user_activity table): Audit log entry
+  - Attributes: event type (signup, signin, signout, failed_signin, password_reset), timestamp, IP address, user agent, user_id (if authenticated)
+  - Purpose: Security monitoring, suspicious activity detection, compliance auditing
+
+## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Users can complete the full signup flow (Steps 1 and 2) in under 90 seconds
-- **SC-002**: Signup API endpoint responds in under 500ms (including password hashing and database write)
-- **SC-003**: Signin API endpoint responds in under 400ms (including password verification and JWT generation)
-- **SC-004**: JWT token size remains under 1KB to fit in standard HTTP headers and cookies (current: ~500 bytes)
-- **SC-005**: 100% of signup attempts with valid data successfully create user accounts with profiles stored in database
-- **SC-006**: 100% of signin attempts with valid credentials return JWT tokens with correct embedded profile claims
-- **SC-007**: Zero password storage vulnerabilities (passwords never stored in plaintext, always bcrypt-hashed with salt)
-- **SC-008**: 100% of duplicate email signup attempts are rejected with clear error message before database write
-- **SC-009**: JWT tokens decode successfully on client-side without requiring server requests (pure JavaScript base64 decoding)
-- **SC-010**: Authenticated users see their personalized navbar (name + GPU type) within 100ms of page load (localStorage read + JWT decode)
-- **SC-011**: Platform earns 50 bonus hackathon points by implementing functional hardware-aware authentication with profile persistence
-- **SC-012**: Authentication modals open and close without page reload or navigation (smooth UX, no content loss)
+- **SC-001**: New users can complete signup process including hardware profiling in under 2 minutes
+- **SC-002**: Returning users can sign in within 10 seconds
+- **SC-003**: System correctly authenticates valid credentials 100% of the time
+- **SC-004**: System correctly rejects invalid credentials (wrong password, non-existent email) 100% of the time
+- **SC-005**: Password reset emails are delivered within 60 seconds of request
+- **SC-006**: Profile updates are persisted immediately (reflected in next API request)
+- **SC-007**: JWT tokens enable stateless authentication (no database lookup required to validate token)
+- **SC-008**: Authentication endpoints handle 100 concurrent requests without errors
+- **SC-009**: Zero plaintext passwords stored in database or logged in application logs
+- **SC-010**: 90% of users successfully complete signup on first attempt without validation errors
+- **SC-011**: System prevents brute-force attacks by rate-limiting failed signin attempts to 10 per minute per IP
+- **SC-012**: Profile data completeness is 100% (all hardware/software questions answered by all users)
 
-## Assumptions
+### Assumptions
 
-1. **Database Connection**: Assumes Neon Postgres database is provisioned and DATABASE_URL environment variable is configured with valid connection string (no sslmode parameter for asyncpg compatibility)
+- Users have valid email addresses they can access for signup confirmation and password resets
+- Better-Auth library is used only for frontend UI components (signup/signin forms); backend authentication logic is custom FastAPI implementation using JWT
+- Database schema already exists (users and user_profiles tables from migration 001_initial_schema.sql)
+- Database schema will be extended with new columns: gpu_type, ram_capacity, coding_languages, robotics_experience in user_profiles table
+- Frontend is React-based (Docusaurus) and can integrate Better-Auth React components or custom forms
+- Backend API base URL is available as environment variable (VITE_API_URL for frontend, configurable via .env)
+- AUTH_SECRET environment variable is securely generated (minimum 32 characters, cryptographically random)
+- Neon Postgres database supports JSONB type for storing coding_languages array
+- Email sending service is available for password reset emails (SendGrid, AWS SES, or SMTP server)
+- Rate limiting can be implemented using FastAPI middleware or Redis (if available; fallback to in-memory cache)
+- User timezone handling is out of scope (all timestamps stored in UTC, displayed in browser's local timezone)
+- Multi-factor authentication (MFA) is out of scope for this MVP
+- OAuth2 social signin (Google, GitHub) is out of scope for this MVP
+- Anonymous users can still browse textbook content; authentication is required only for personalization, translation, and chat history features
 
-2. **Environment Variables**: Assumes AUTH_SECRET is configured with at least 32 characters for JWT signing security
+### Out of Scope
 
-3. **Frontend Environment**: Assumes Docusaurus React environment with localStorage available (modern browsers, not server-side rendering context)
+- **OAuth2 Social Signin**: No Google, GitHub, or other social login providers (adds complexity, not required for bonus points)
+- **Multi-Factor Authentication (MFA)**: No SMS or authenticator app 2FA (security enhancement for future iteration)
+- **Email Verification**: No email confirmation link sent after signup (acceptable for hackathon; users can immediately access features after signup)
+- **Session Management Database Table**: No sessions table in database; JWT tokens are stateless (aligns with ADR-002 decision)
+- **Token Revocation/Blacklist**: Cannot revoke JWT tokens before expiration (acceptable; use short expiration times)
+- **Account Deletion**: Users cannot delete their own accounts via UI (must contact support; prevents accidental data loss)
+- **Admin Panel**: No admin interface for managing users, viewing analytics, or moderating content
+- **Usage Analytics Dashboard**: No user-facing dashboard showing learning progress, time spent, or chapters completed
+- **Real-Time Notifications**: No WebSocket or push notifications for account events
+- **API Rate Limiting by User**: Rate limiting is per-IP only; no per-user API quotas
+- **Internationalization (i18n) for Auth Forms**: Signup/signin forms are English-only (Urdu translation feature applies to textbook content, not auth UI)
 
-4. **API Base URL**: Assumes backend runs on http://localhost:8000 during development (hardcoded in AuthContext.tsx after process.env.REACT_APP_API_URL failed in browser)
+### Dependencies
 
-5. **CORS Configuration**: Assumes backend allows CORS requests from frontend origin (http://localhost:3000 in development)
+- **Better-Auth Library**: Frontend UI components for signup/signin forms (React library)
+- **python-jose**: Python library for JWT encoding/decoding (backend dependency)
+- **bcrypt or passlib**: Python library for password hashing (backend dependency)
+- **FastAPI HTTPBearer Security**: FastAPI security utilities for extracting Bearer tokens from Authorization header
+- **Neon Postgres Database**: Existing database with users and user_profiles tables (already provisioned)
+- **Email Service** (optional for password reset): SendGrid, AWS SES, or SMTP server with credentials in .env
+- **Redis** (optional for rate limiting): If available, use for distributed rate limiting; otherwise use in-memory cache
 
-6. **User Hardware Honesty**: Assumes users provide accurate hardware information during signup (no verification mechanism for GPU/RAM claims)
+### Constraints
 
-7. **Single Device Login**: Assumes users primarily access platform from one device/browser (JWT in localStorage not synced across devices)
+- **Cost**: Must operate within free tiers (Neon Postgres 0.5GB limit includes all tables: users, profiles, chat sessions)
+- **Latency**: JWT validation must complete in under 50ms (stateless, no database lookup)
+- **Security**: Password hashing (bcrypt) takes ~100-300ms per request (acceptable for signup/signin; unavoidable for security)
+- **Database Size**: Each user account + profile consumes ~1KB (email, hash, profile fields). With 0.5GB limit and other tables, support up to ~100,000 users (more than sufficient for hackathon demo).
+- **JWT Size**: Token payload must be under 4KB to fit in cookie header (current profile claims ~500 bytes; well within limit)
+- **CORS**: Backend must allow requests from frontend domain (GitHub Pages or localhost during development)
+- **HTTPS Required**: JWT tokens in cookies require Secure flag, which mandates HTTPS for production deployment
 
-8. **No Password Recovery**: Initial implementation does not include "Forgot Password" flow (users with lost passwords cannot recover accounts)
+### Agent Assignments
 
-9. **No Email Verification**: Initial implementation does not send verification emails (users can sign up with any email address without proving ownership)
+- **@Backend-Engineer** (using `skills/fastapi-coder.md`):
+  - Create `/api/auth/signup` POST endpoint for user registration
+  - Create `/api/auth/signin` POST endpoint for authentication
+  - Create `/api/auth/signout` POST endpoint (optional; primarily client-side token clearing)
+  - Create `/api/profile` GET endpoint to fetch user profile
+  - Create `/api/profile` PUT endpoint to update user profile
+  - Implement JWT token generation, signing, and validation middleware
+  - Implement bcrypt password hashing utility functions
+  - Add validation for email format, password strength, profile fields
+  - Implement rate limiting middleware for auth endpoints
+  - Add authentication event logging to user_activity table
+  - Write database migration to add new profile columns (gpu_type, ram_capacity, coding_languages, robotics_experience)
 
-10. **Session Duration**: Assumes 24-hour JWT expiration is acceptable balance between convenience and security (configurable via environment variable)
+- **@Frontend-Architect** (using `skills/react-component.md`):
+  - Create `<SignupModal />` React component with email, password, name, and hardware profile fields
+  - Create `<SigninModal />` React component with email and password fields
+  - Create `<ProfilePage />` React component for viewing/editing user profile
+  - Integrate Better-Auth UI components or build custom forms with validation
+  - Implement JWT token storage (httpOnly cookie via backend or localStorage with XSS protections)
+  - Add "Sign Up" and "Sign In" buttons to Docusaurus navigation bar
+  - Implement authenticated navigation state (show user name, "My Profile", "Sign Out" when logged in)
+  - Add form validation with real-time feedback (password strength indicator, email format check)
+  - Implement error handling for API failures (network errors, validation errors, authentication failures)
+  - Add loading states for async operations (signup, signin, profile update)
 
-## Dependencies
+### Non-Functional Requirements
 
-- **External Services**: Neon Postgres (serverless PostgreSQL database for user and profile storage)
-- **Backend Framework**: FastAPI (Python async web framework)
-- **Database Driver**: asyncpg (async PostgreSQL driver for SQLAlchemy, requires connection strings without sslmode parameter)
-- **Password Hashing**: bcrypt (via Python bcrypt library with async wrapper using asyncio.run_in_executor)
-- **JWT Library**: PyJWT (Python implementation for HS256 token signing and verification)
-- **Email Validation**: email-validator (required by pydantic EmailStr type)
-- **Frontend Framework**: Docusaurus v3 with React 18 (static site generator with React components)
-- **Styling**: Tailwind CSS (utility-first CSS framework for modal and navbar styling)
-- **Icons**: lucide-react (icon library for User, LogOut, Lock, Mail icons)
-- **Frontend HTTP**: Native fetch API (no axios or additional HTTP libraries)
+**Performance**:
+- Signup request must complete in under 2 seconds (p95)
+- Signin request must complete in under 1 second (p95)
+- JWT validation must complete in under 50ms
+- Profile update must complete in under 1 second (p95)
 
-## Out of Scope
+**Security**:
+- Passwords hashed with bcrypt salt rounds ≥ 12
+- JWT tokens signed with HS256 and secret ≥ 32 characters
+- Rate limiting: 10 auth requests per IP per minute
+- No plaintext passwords in logs, database, or error messages
+- Generic error messages to prevent email enumeration
 
-1. **OAuth2 / Social Login**: Third-party authentication (Google, GitHub, etc.) is not included in this phase
-2. **Email Verification**: No email confirmation flow or verification links sent after signup
-3. **Password Recovery**: No "Forgot Password" / password reset functionality
-4. **Multi-Factor Authentication (MFA)**: No 2FA or OTP verification
-5. **Account Deletion**: No self-service account deletion UI (would require manual database operation)
-6. **Profile Editing**: Users cannot update their hardware profile after signup (profile is immutable in v1)
-7. **Admin Dashboard**: No administrative interface for managing users or viewing profiles
-8. **Rate Limiting**: No API rate limiting or brute-force protection on signin attempts
-9. **Audit Logging**: No logging of authentication events (signup, signin, signout) for security monitoring
-10. **JWT Refresh Tokens**: No refresh token mechanism (users must sign in again after 24-hour expiration)
-11. **RBAC / Permissions**: No role-based access control or permission system (all authenticated users have equal access)
-12. **Hardware Verification**: No mechanism to verify user-reported GPU/RAM (relies on user honesty)
-13. **Content Personalization Logic**: This spec only covers profile collection and storage; actual content filtering/recommendation based on hardware is a future phase
-14. **Internationalization**: Authentication UI is English-only (no Urdu translation in this phase)
-15. **Accessibility (WCAG)**: No formal accessibility audit or ARIA labels for screen readers (basic HTML semantics only)
+**Reliability**:
+- Auth endpoints must maintain 99.9% uptime
+- Database failures must return user-friendly errors (no stack traces exposed)
+- Token expiration must be handled gracefully with clear re-signin prompts
 
-## Notes
-
-- This feature was implemented and deployed successfully as documented in the conversation transcript
-- Backend running on port 8000, frontend on port 3000
-- Database migration script: `backend/db/migrations/003_user_profile_hardware.sql` creates users and user_profiles tables
-- Main implementation files:
-  - Backend: `backend/src/routers/auth.py`, `backend/src/models/auth.py`, `backend/src/utils/jwt.py`, `backend/src/utils/password.py`
-  - Frontend: `src/context/AuthContext.tsx`, `src/components/Auth/SignupModal.tsx`, `src/components/Auth/SigninModal.tsx`, `src/theme/NavbarItem/AuthButton.tsx`
-- Known issue resolved: process.env undefined in browser context (replaced with hardcoded API URL)
-- Known issue resolved: Docusaurus navbar validation error (changed type from 'default' to 'html')
-- Launch scripts available: `scripts/start_all.sh` (with health checks) and `scripts/start_simple.sh` (recommended for quick startup)
+**Usability**:
+- Signup form must complete in under 2 minutes
+- Error messages must be clear and actionable
+- Password requirements must be visible before submission
+- Profile fields must have clear labels and help text explaining purpose

@@ -1,21 +1,23 @@
 /**
- * Signup Modal Component
+ * Signup Modal with Hardware Profiling Wizard
  * Feature: 003-better-auth
  *
- * 2-step signup wizard with hardware profiling (THE 50-POINT FEATURE)
- * Step 1: Basic credentials (name, email, password)
- * Step 2: Hardware profile (GPU, RAM, languages, experience)
+ * Two-step signup process:
+ * Step 1: Basic credentials (email, password, name)
+ * Step 2: Hardware profiling (THE 50-POINT BONUS FEATURE)
  */
 
 import React, { useState } from 'react';
+import { X, ChevronRight, ChevronLeft, Check, Cpu, HardDrive, Code, Award } from 'lucide-react';
 import { useAuth } from '@site/src/context/AuthContext';
-import { X, ArrowLeft, ArrowRight, Cpu, Check } from 'lucide-react';
 
 interface SignupModalProps {
+  isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-// Hardware profiling options (THE 50-POINT FEATURE)
+// Hardware options (matching backend validation)
 const GPU_OPTIONS = [
   'No GPU',
   'NVIDIA RTX 3060',
@@ -35,10 +37,10 @@ const RAM_OPTIONS = [
 const CODING_LANGUAGES = [
   'Python',
   'C++',
-  'JavaScript',
-  'Java',
+  'JavaScript/TypeScript',
   'Rust',
-  'Go',
+  'Java',
+  'Other',
 ];
 
 const ROBOTICS_EXPERIENCE = [
@@ -48,87 +50,123 @@ const ROBOTICS_EXPERIENCE = [
   'Advanced (3+ years)',
 ];
 
-export default function SignupModal({ onClose }: SignupModalProps): JSX.Element {
+export default function SignupModal({ isOpen, onClose, onSuccess }: SignupModalProps) {
   const { signup } = useAuth();
+
+  // Form state
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
 
   // Step 1: Basic credentials
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
 
-  // Step 2: Hardware profile (THE 50-POINT FEATURE)
+  // Step 2: Hardware profile
   const [gpuType, setGpuType] = useState('');
   const [ramCapacity, setRamCapacity] = useState('');
   const [codingLanguages, setCodingLanguages] = useState<string[]>([]);
   const [roboticsExperience, setRoboticsExperience] = useState('');
 
-  const toggleLanguage = (lang: string) => {
-    setCodingLanguages((prev) =>
-      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
-    );
+  // Reset form
+  const resetForm = () => {
+    setStep(1);
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setName('');
+    setGpuType('');
+    setRamCapacity('');
+    setCodingLanguages([]);
+    setRoboticsExperience('');
+    setError(null);
+    setSuccess(false);
   };
 
+  // Handle close
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  // Validate Step 1
   const validateStep1 = (): boolean => {
-    if (!name || !email || !password || !confirmPassword) {
+    if (!email || !password || !name) {
       setError('All fields are required');
       return false;
     }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return false;
-    }
+
     if (password.length < 8) {
       setError('Password must be at least 8 characters');
       return false;
     }
+
     if (!/[A-Z]/.test(password)) {
       setError('Password must contain at least one uppercase letter');
       return false;
     }
-    if (!/[0-9]/.test(password)) {
+
+    if (!/[a-z]/.test(password)) {
+      setError('Password must contain at least one lowercase letter');
+      return false;
+    }
+
+    if (!/\d/.test(password)) {
       setError('Password must contain at least one number');
       return false;
     }
-    return true;
-  };
 
-  const validateStep2 = (): boolean => {
-    if (!gpuType || !ramCapacity || codingLanguages.length === 0 || !roboticsExperience) {
-      setError('All hardware profile fields are required');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       return false;
     }
+
+    setError(null);
     return true;
   };
 
-  const handleNext = () => {
-    setError('');
+  // Validate Step 2
+  const validateStep2 = (): boolean => {
+    if (!gpuType || !ramCapacity || codingLanguages.length === 0 || !roboticsExperience) {
+      setError('Please complete all hardware profile questions');
+      return false;
+    }
+
+    setError(null);
+    return true;
+  };
+
+  // Go to Step 2
+  const goToStep2 = () => {
     if (validateStep1()) {
       setStep(2);
     }
   };
 
-  const handleBack = () => {
-    setError('');
-    setStep(1);
+  // Toggle coding language selection
+  const toggleLanguage = (lang: string) => {
+    if (codingLanguages.includes(lang)) {
+      setCodingLanguages(codingLanguages.filter((l) => l !== lang));
+    } else {
+      setCodingLanguages([...codingLanguages, lang]);
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
+  // Submit signup
+  const handleSubmit = async () => {
     if (!validateStep2()) return;
 
     setLoading(true);
+    setError(null);
+
     try {
       await signup({
-        name,
         email,
         password,
+        name,
         gpu_type: gpuType,
         ram_capacity: ramCapacity,
         coding_languages: codingLanguages,
@@ -137,138 +175,145 @@ export default function SignupModal({ onClose }: SignupModalProps): JSX.Element 
 
       setSuccess(true);
       setTimeout(() => {
-        onClose();
+        if (onSuccess) onSuccess();
+        handleClose();
       }, 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Signup failed');
+    } catch (err: any) {
+      setError(err.message || 'Signup failed. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 p-6">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {success ? 'Account Created!' : 'Create Account'}
-            </h2>
-            {!success && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Step {step} of 2: {step === 1 ? 'Basic Information' : 'Hardware Profile'}
-              </p>
-            )}
+            <h2 className="text-2xl font-bold text-gray-900">Create Account</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {step === 1 ? 'Step 1 of 2: Basic Information' : 'Step 2 of 2: Hardware Profile'}
+            </p>
           </div>
           <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            onClick={handleClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
             aria-label="Close"
           >
-            <X size={20} className="text-gray-500 dark:text-gray-400" />
+            <X size={24} />
           </button>
         </div>
 
-        {/* Success state */}
+        {/* Success State */}
         {success && (
-          <div className="p-8 text-center">
-            <div className="mb-4 flex justify-center">
-              <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-4">
-                <Check size={48} className="text-green-600 dark:text-green-400" />
-              </div>
+          <div className="px-6 py-12 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check size={32} className="text-green-600" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              Welcome to Physical AI & Humanoid Robotics
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Your account has been created successfully!
-            </p>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Account Created!</h3>
+            <p className="text-gray-600">Welcome to Physical AI & Humanoid Robotics</p>
           </div>
         )}
 
         {/* Form */}
         {!success && (
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Step 1: Basic credentials */}
+          <div className="px-6 py-6">
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
+
+            {/* Step 1: Basic Credentials */}
             {step === 1 && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                     Full Name
                   </label>
                   <input
                     type="text"
+                    id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="John Doe"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                     Email Address
                   </label>
                   <input
                     type="email"
+                    id="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="john@example.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="you@example.com"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                     Password
                   </label>
                   <input
                     type="password"
+                    id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Min 8 chars, 1 uppercase, 1 number"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Min 8 chars, uppercase, lowercase, number"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
                     Confirm Password
                   </label>
                   <input
                     type="password"
+                    id="confirmPassword"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Re-enter password"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Re-enter your password"
                     required
                   />
                 </div>
+
+                <button
+                  onClick={goToStep2}
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-md font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  Next: Hardware Profile
+                  <ChevronRight size={20} />
+                </button>
               </div>
             )}
 
-            {/* Step 2: Hardware profile (THE 50-POINT FEATURE) */}
+            {/* Step 2: Hardware Profile (THE 50-POINT BONUS FEATURE) */}
             {step === 2 && (
               <div className="space-y-6">
-                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-4">
-                  <Cpu size={20} />
-                  <span className="text-sm font-medium">
-                    Help us personalize your learning experience
-                  </span>
-                </div>
-
                 {/* GPU Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <Cpu size={18} className="text-blue-600" />
                     GPU Type
                   </label>
                   <select
                     value={gpuType}
                     onChange={(e) => setGpuType(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
                     <option value="">Select your GPU...</option>
@@ -282,13 +327,14 @@ export default function SignupModal({ onClose }: SignupModalProps): JSX.Element 
 
                 {/* RAM Capacity */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <HardDrive size={18} className="text-green-600" />
                     RAM Capacity
                   </label>
                   <select
                     value={ramCapacity}
                     onChange={(e) => setRamCapacity(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
                     <option value="">Select your RAM...</option>
@@ -300,10 +346,11 @@ export default function SignupModal({ onClose }: SignupModalProps): JSX.Element 
                   </select>
                 </div>
 
-                {/* Coding Languages (Multi-select) */}
+                {/* Coding Languages */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Coding Languages (select all that apply)
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <Code size={18} className="text-purple-600" />
+                    Coding Languages (Select all that apply)
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {CODING_LANGUAGES.map((lang) => (
@@ -311,10 +358,10 @@ export default function SignupModal({ onClose }: SignupModalProps): JSX.Element 
                         key={lang}
                         type="button"
                         onClick={() => toggleLanguage(lang)}
-                        className={`px-4 py-2 rounded-lg border transition-all ${
+                        className={`px-4 py-2 rounded-md border-2 transition-all ${
                           codingLanguages.includes(lang)
-                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-700 dark:text-blue-300 font-medium'
-                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            ? 'bg-blue-50 border-blue-500 text-blue-700'
+                            : 'bg-white border-gray-300 text-gray-700 hover:border-blue-300'
                         }`}
                       >
                         {lang}
@@ -325,16 +372,17 @@ export default function SignupModal({ onClose }: SignupModalProps): JSX.Element 
 
                 {/* Robotics Experience */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <Award size={18} className="text-orange-600" />
                     Robotics Experience
                   </label>
                   <select
                     value={roboticsExperience}
                     onChange={(e) => setRoboticsExperience(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
-                    <option value="">Select your experience...</option>
+                    <option value="">Select your experience level...</option>
                     {ROBOTICS_EXPERIENCE.map((exp) => (
                       <option key={exp} value={exp}>
                         {exp}
@@ -342,51 +390,28 @@ export default function SignupModal({ onClose }: SignupModalProps): JSX.Element 
                     ))}
                   </select>
                 </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <ChevronLeft size={20} />
+                    Back
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-md font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {loading ? 'Creating Account...' : 'Create Account'}
+                    {!loading && <Check size={20} />}
+                  </button>
+                </div>
               </div>
             )}
-
-            {/* Error message */}
-            {error && (
-              <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-              </div>
-            )}
-
-            {/* Navigation buttons */}
-            <div className="flex items-center justify-between pt-4">
-              {step === 2 && (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <ArrowLeft size={16} />
-                  Back
-                </button>
-              )}
-
-              {step === 1 && (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="ml-auto flex items-center gap-2 px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Next: Hardware Profile
-                  <ArrowRight size={16} />
-                </button>
-              )}
-
-              {step === 2 && (
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="ml-auto px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  {loading ? 'Creating Account...' : 'Create Account'}
-                </button>
-              )}
-            </div>
-          </form>
+          </div>
         )}
       </div>
     </div>

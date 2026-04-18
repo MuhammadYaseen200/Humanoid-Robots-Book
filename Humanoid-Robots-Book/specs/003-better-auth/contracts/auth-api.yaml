@@ -1,0 +1,575 @@
+openapi: 3.1.0
+info:
+  title: Better-Auth & User Profiling API
+  version: 1.0.0
+  description: |
+    Authentication and user profile management endpoints for the Physical AI Textbook platform.
+    Implements JWT-based authentication with hardware/software profiling for personalization.
+  contact:
+    name: API Support
+    email: support@physicalai.bot
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User signup, signin, and signout operations
+  - name: Profile
+    description: User profile management and hardware background
+  - name: Password Reset
+    description: Password recovery flow
+
+paths:
+  /api/auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: Create new user account
+      description: |
+        Register a new user with email, password, and hardware/software profile.
+        Returns JWT token on success. All profile fields are required for personalization.
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+            examples:
+              beginner_user:
+                summary: Beginner user with basic hardware
+                value:
+                  email: student@example.com
+                  password: SecurePass123!
+                  name: John Doe
+                  gpu_type: "None/Integrated Graphics"
+                  ram_capacity: "8-16GB"
+                  coding_languages: ["None"]
+                  robotics_experience: "No prior experience"
+              advanced_user:
+                summary: Advanced user with high-end hardware
+                value:
+                  email: engineer@example.com
+                  password: ComplexP@ss456
+                  name: Jane Smith
+                  gpu_type: "NVIDIA RTX 4070 Ti"
+                  ram_capacity: "32GB or more"
+                  coding_languages: ["Python", "C++", "Rust"]
+                  robotics_experience: "Professional (industry experience)"
+      responses:
+        '201':
+          description: User created successfully
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=86400
+              description: JWT token in httpOnly cookie (production only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                weak_password:
+                  summary: Password too weak
+                  value:
+                    detail: "Password must be at least 8 characters with uppercase, number, and symbol"
+                invalid_email:
+                  summary: Invalid email format
+                  value:
+                    detail: "Please enter a valid email address"
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Email already registered. Please sign in instead."
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Too many signup attempts. Please try again in 1 minute."
+
+  /api/auth/signin:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate existing user
+      description: |
+        Validate email and password, return JWT token with user profile claims.
+        Returns generic error for wrong email or password to prevent email enumeration.
+      operationId: signin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SigninRequest'
+            example:
+              email: student@example.com
+              password: SecurePass123!
+      responses:
+        '200':
+          description: Signin successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: JWT token in httpOnly cookie (production)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Invalid email or password"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/signout:
+    post:
+      tags:
+        - Authentication
+      summary: Sign out current user
+      description: |
+        Clear authentication token (primarily client-side operation).
+        Backend clears httpOnly cookie if used.
+      operationId: signout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Signout successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: token=; HttpOnly; Secure; Max-Age=0
+              description: Expired cookie to clear token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Signed out successfully"
+
+  /api/profile:
+    get:
+      tags:
+        - Profile
+      summary: Get current user profile
+      description: |
+        Retrieve user profile including hardware/software background.
+        Requires valid JWT token in Authorization header or cookie.
+      operationId: getProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Invalid or expired token"
+
+    put:
+      tags:
+        - Profile
+      summary: Update user profile
+      description: |
+        Update hardware/software profile fields. Email cannot be changed.
+        Returns refreshed JWT token with updated claims.
+      operationId: updateProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+            example:
+              gpu_type: "NVIDIA RTX 4070 Ti"
+              ram_capacity: "16-32GB"
+              coding_languages: ["Python", "C++"]
+              robotics_experience: "Hobbyist (built simple projects)"
+      responses:
+        '200':
+          description: Profile updated successfully
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Refreshed JWT token with updated claims
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/UserProfile'
+                  - type: object
+                    properties:
+                      token:
+                        type: string
+                        description: Refreshed JWT token
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /api/auth/forgot-password:
+    post:
+      tags:
+        - Password Reset
+      summary: Request password reset
+      description: |
+        Send password reset email with time-limited token.
+        Returns success message even if email not found (prevents email enumeration).
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: student@example.com
+      responses:
+        '200':
+          description: Reset email sent (or email not found, same response)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password reset link sent to your email"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/reset-password:
+    post:
+      tags:
+        - Password Reset
+      summary: Reset password with token
+      description: |
+        Validate reset token and set new password.
+        Increments reset_counter to invalidate all previous reset tokens.
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+            example:
+              token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+              new_password: NewSecurePass789!
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password updated successfully. Please sign in with your new password."
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                expired_token:
+                  summary: Token expired
+                  value:
+                    detail: "Password reset link has expired. Please request a new one."
+                invalid_token:
+                  summary: Invalid token
+                  value:
+                    detail: "Invalid reset token"
+                token_reused:
+                  summary: Token already used
+                  value:
+                    detail: "This reset link has already been used. Please request a new one."
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/signup or /auth/signin
+
+  schemas:
+    SignupRequest:
+      type: object
+      required:
+        - email
+        - password
+        - name
+        - gpu_type
+        - ram_capacity
+        - coding_languages
+        - robotics_experience
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: User email address (must be unique)
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          pattern: '^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*]).+$'
+          description: Password (min 8 chars, must contain uppercase, number, symbol)
+        name:
+          type: string
+          maxLength: 255
+          description: User display name
+        gpu_type:
+          type: string
+          enum:
+            - "None/Integrated Graphics"
+            - "NVIDIA RTX 3060"
+            - "NVIDIA RTX 4070 Ti"
+            - "NVIDIA RTX 4080/4090"
+            - "AMD Radeon RX 7000 Series"
+            - "Other"
+          description: User GPU hardware type
+        ram_capacity:
+          type: string
+          enum:
+            - "4-8GB"
+            - "8-16GB"
+            - "16-32GB"
+            - "32GB or more"
+          description: User system RAM capacity
+        coding_languages:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum:
+              - "None"
+              - "Python"
+              - "C++"
+              - "JavaScript/TypeScript"
+              - "Java"
+              - "C#"
+              - "Rust"
+              - "Other"
+          description: Programming languages user knows
+        robotics_experience:
+          type: string
+          enum:
+            - "No prior experience"
+            - "Hobbyist (built simple projects)"
+            - "Student (taking courses)"
+            - "Professional (industry experience)"
+          description: User robotics background level
+
+    SigninRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token (also in httpOnly cookie if production)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJlbWFpbCI6InN0dWRlbnRAZXhhbXBsZS5jb20iLCJuYW1lIjoiSm9obiBEb2UiLCJncHVfdHlwZSI6Ik5WSURJQSBSVFggNDA3MCBUaSIsInJhbV9jYXBhY2l0eSI6IjE2LTMyR0IiLCJjb2RpbmdfbGFuZ3VhZ2VzIjpbIlB5dGhvbiIsIkMrKyJdLCJyb2JvdGljc19leHBlcmllbmNlIjoiSG9iYnlpc3QgKGJ1aWx0IHNpbXBsZSBwcm9qZWN0cykiLCJpYXQiOjE3MDI5ODk2MDAsImV4cCI6MTcwMzA3NjAwMH0.signature
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        email:
+          type: string
+          format: email
+          example: student@example.com
+        name:
+          type: string
+          example: John Doe
+        gpu_type:
+          type: string
+          example: "NVIDIA RTX 4070 Ti"
+        ram_capacity:
+          type: string
+          example: "16-32GB"
+        coding_languages:
+          type: array
+          items:
+            type: string
+          example: ["Python", "C++"]
+        robotics_experience:
+          type: string
+          example: "Hobbyist (built simple projects)"
+        learning_style:
+          type: string
+          example: "balanced"
+        difficulty_level:
+          type: string
+          example: "intermediate"
+        preferred_language:
+          type: string
+          example: "en"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-12-16T10:30:00Z"
+        last_login:
+          type: string
+          format: date-time
+          example: "2025-12-16T14:45:00Z"
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        gpu_type:
+          type: string
+          enum:
+            - "None/Integrated Graphics"
+            - "NVIDIA RTX 3060"
+            - "NVIDIA RTX 4070 Ti"
+            - "NVIDIA RTX 4080/4090"
+            - "AMD Radeon RX 7000 Series"
+            - "Other"
+        ram_capacity:
+          type: string
+          enum:
+            - "4-8GB"
+            - "8-16GB"
+            - "16-32GB"
+            - "32GB or more"
+        coding_languages:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        robotics_experience:
+          type: string
+          enum:
+            - "No prior experience"
+            - "Hobbyist (built simple projects)"
+            - "Student (taking courses)"
+            - "Professional (industry experience)"
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - token
+        - new_password
+      properties:
+        token:
+          type: string
+          description: Password reset JWT token from email link
+        new_password:
+          type: string
+          minLength: 8
+          pattern: '^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*]).+$'
+          description: New password (same validation as signup)
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Human-readable error message
+
+    ValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+                description: Location of validation error (e.g., ["body", "password"])
+              msg:
+                type: string
+                description: Validation error message
+              type:
+                type: string
+                description: Error type (e.g., "value_error.email")

@@ -6,9 +6,6 @@
 import React from 'react';
 import { AuthProvider } from '@site/src/context/AuthContext';
 import ChatWidget from '@site/src/components/ChatWidget';
-
-// ExecutionEnvironment is used to detect if we're running in browser
-// This prevents SSR issues during build
 import ExecutionEnvironment from '@docusaurus/ExecutionEnvironment';
 
 interface RootProps {
